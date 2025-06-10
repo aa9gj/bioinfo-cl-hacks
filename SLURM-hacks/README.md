@@ -162,22 +162,22 @@ Chain jobs to ensure a workflow progresses sequentially, with each step starting
 # --- Part 1: Alignment Job ---
 echo "Submitting Part 1: Alignment Job..."
 # The --parsable option ensures only the Job ID is printed to stdout.
-JOB_ID_1=<span class="math-inline">\(sbatch \-\-parsable <<EOF
-\#\!/bin/bash
-\#SBATCH \-\-job\-name\=align\_step
-\#SBATCH \-\-output\=align\_%j\.out
-\#SBATCH \-\-error\=align\_%j\.err
-\#SBATCH \-\-time\=01\:00\:00
-\#SBATCH \-\-cpus\-per\-task\=8
-\#SBATCH \-\-mem\=16G
-echo "Starting alignment for SampleA\.\.\."
-module load bwa/0\.7\.17 samtools/1\.16\.1
-bwa mem \-t \\$SLURM\_CPUS\_PER\_TASK /path/to/reference\.fasta /path/to/SampleA\_R1\.fastq\.gz /path/to/SampleA\_R2\.fastq\.gz \| \\
-samtools view \-Sb \- \> SampleA\.bam
-samtools sort SampleA\.bam \-o SampleA\.sorted\.bam
-samtools index SampleA\.sorted\.bam
-rm SampleA\.bam \# Clean up unsorted BAM
-if \[ \\</span>? -eq 0 ]; then
+JOB_ID_1=$(sbatch --parsable <<EOF
+#!/bin/bash
+#SBATCH --job-name=align_step
+#SBATCH --output=align_%j.out
+#SBATCH --error=align_%j.err
+#SBATCH --time=01:00:00
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=16G
+echo "Starting alignment for SampleA..."
+module load bwa/0.7.17 samtools/1.16.1
+bwa mem -t $SLURM_CPUS_PER_TASK /path/to/reference.fasta /path/to/SampleA_R1.fastq.gz /path/to/SampleA_R2.fastq.gz | \
+samtools view -Sb - > SampleA.bam
+samtools sort SampleA.bam -o SampleA.sorted.bam
+samtools index SampleA.sorted.bam
+rm SampleA.bam # Clean up unsorted BAM
+if [ $? -eq 0 ]; then
     echo "Alignment for SampleA completed successfully."
 else
     echo "Alignment for SampleA failed."
