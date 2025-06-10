@@ -178,7 +178,7 @@ module load ensembl-vep/109 # Example VEP module, adjust as needed
 # Consult VEP documentation for full details and cache setup.
 # vep --input SampleA.vcf.gz --output SampleA.annotated.vcf --cache --fork \$SLURM_CPUS_PER_TASK
 echo "Annotation for SampleA completed successfully (simulated)." # Replace with actual command
-if [ \$? -eq 0 ]; then
+if [ $? -eq 0 ]; then
     echo "Annotation for SampleA completed successfully."
 else
     echo "Annotation for SampleA failed."
