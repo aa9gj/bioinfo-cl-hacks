@@ -145,3 +145,115 @@ else
     echo "ERROR: Task $SLURM_ARRAY_TASK_ID ($SAMPLE_IDENTIFIER) failed."
     exit 1
 fi
+```
+---
+
+## Job Dependencies and Chaining
+
+Chain jobs to ensure a workflow progresses sequentially, with each step starting only after the previous one successfully completes.
+
+### Chaining Jobs with `--dependency=afterok` (`chaining_slurm_jobs.sh`)
+
+```bash
+#!/bin/bash
+# This script submits a series of dependent jobs.
+# Submit this script itself to SLURM: sbatch chaining_slurm_jobs.sh
+
+# --- Part 1: Alignment Job ---
+echo "Submitting Part 1: Alignment Job..."
+# The --parsable option ensures only the Job ID is printed to stdout.
+JOB_ID_1=<span class="math-inline">\(sbatch \-\-parsable <<EOF
+\#\!/bin/bash
+\#SBATCH \-\-job\-name\=align\_step
+\#SBATCH \-\-output\=align\_%j\.out
+\#SBATCH \-\-error\=align\_%j\.err
+\#SBATCH \-\-time\=01\:00\:00
+\#SBATCH \-\-cpus\-per\-task\=8
+\#SBATCH \-\-mem\=16G
+echo "Starting alignment for SampleA\.\.\."
+module load bwa/0\.7\.17 samtools/1\.16\.1
+bwa mem \-t \\$SLURM\_CPUS\_PER\_TASK /path/to/reference\.fasta /path/to/SampleA\_R1\.fastq\.gz /path/to/SampleA\_R2\.fastq\.gz \| \\
+samtools view \-Sb \- \> SampleA\.bam
+samtools sort SampleA\.bam \-o SampleA\.sorted\.bam
+samtools index SampleA\.sorted\.bam
+rm SampleA\.bam \# Clean up unsorted BAM
+if \[ \\</span>? -eq 0 ]; then
+    echo "Alignment for SampleA completed successfully."
+else
+    echo "Alignment for SampleA failed."
+    exit 1
+fi
+EOF
+)
+
+if [ -z "$JOB_ID_1" ]; then
+    echo "ERROR: Failed to submit Part 1 job."
+    exit 1
+fi
+echo "Part 1 (Alignment) submitted with ID: $JOB_ID_1"
+
+# --- Part 2: Variant Calling Job (depends on Part 1 success) ---
+echo "Submitting Part 2: Variant Calling Job (dependent on <span class="math-inline">JOB\_ID\_1\)\.\.\."
+JOB\_ID\_2\=</span>(sbatch --parsable --dependency=afterok:$JOB_ID_1 <<EOF
+#!/bin/bash
+#SBATCH --job-name=variant_call_step
+#SBATCH --output=variant_call_%j.out
+#SBATCH --error=variant_call_%j.err
+#SBATCH --time=00:30:00
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=8G
+
+echo "Starting variant calling for SampleA (dependent on alignment job <span class="math-inline">JOB\_ID\_1\)\.\.\."
+module load bcftools/1\.16
+samtools mpileup \-Ou \-f /path/to/reference\.fasta SampleA\.sorted\.bam \| \\
+bcftools call \-mv \-Oz \-o SampleA\.vcf\.gz
+bcftools index SampleA\.vcf\.gz
+if \[ \\</span>? -eq 0 ]; then
+    echo "Variant calling for SampleA completed successfully."
+else
+    echo "Variant calling for SampleA failed."
+    exit 1
+fi
+EOF
+)
+
+if [ -z "$JOB_ID_2" ]; then
+    echo "ERROR: Failed to submit Part 2 job."
+    exit 1
+fi
+echo "Part 2 (Variant Calling) submitted with ID: $JOB_ID_2"
+
+# --- Part 3: Annotation Job (depends on Part 2 success) ---
+echo "Submitting Part 3: Annotation Job (dependent on <span class="math-inline">JOB\_ID\_2\)\.\.\."
+JOB\_ID\_3\=</span>(sbatch --parsable --dependency=afterok:$JOB_ID_2 <<EOF
+#!/bin/bash
+#SBATCH --job-name=annotation_step
+#SBATCH --output=annotation_%j.out
+#SBATCH --error=annotation_%j.err
+#SBATCH --time=00:20:00
+#SBATCH --cpus-per-task=2
+#SBATCH --mem=4G
+
+echo "Starting annotation for SampleA (dependent on variant calling job <span class="math-inline">JOB\_ID\_2\)\.\.\."
+module load ensembl\-vep/109 \# Example VEP module, adjust as needed
+\# This is a simplified VEP command\. Real VEP usage is more complex\.
+\# Consult VEP documentation for full details and cache setup\.
+\# vep \-\-input SampleA\.vcf\.gz \-\-output SampleA\.annotated\.vcf \-\-cache \-\-fork \\$SLURM\_CPUS\_PER\_TASK
+echo "Annotation for SampleA completed successfully \(simulated\)\." \# Replace with actual command
+if \[ \\</span>? -eq 0 ]; then
+    echo "Annotation for SampleA completed successfully."
+else
+    echo "Annotation for SampleA failed."
+    exit 1
+fi
+EOF
+)
+
+if [ -z "$JOB_ID_3" ]; then
+    echo "ERROR: Failed to submit Part 3 job."
+    exit 1
+fi
+echo "Part 3 (Annotation) submitted with ID: $JOB_ID_3"
+
+echo "All workflow jobs submitted. Monitor with 'squeue' or 'sacct'."
+```
