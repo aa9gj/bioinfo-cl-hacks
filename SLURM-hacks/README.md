@@ -85,3 +85,63 @@ else
     exit 1
 fi
 ```
+### Using an Input File for Array Jobs
+
+For very long lists of samples, it's better to store them in a file. This allows for dynamic array sizing based on the number of lines in your input list.
+
+#### `slurm_array_job_from_file.sh`
+
+```bash
+#!/bin/bash
+#SBATCH --job-name=array_file_process
+#SBATCH --output=array_file_%A_%a.out
+#SBATCH --error=array_file_%A_%a.err
+#SBATCH --time=02:00:00
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=16G
+#SBATCH --array=1-$(wc -l < "samples.txt") # Dynamically set array size based on lines in file
+#SBATCH --export=ALL
+
+# Define the file containing your list of samples/inputs, one per line
+SAMPLE_LIST_FILE="samples.txt"
+
+# Check if the sample list file exists
+if [ ! -f "$SAMPLE_LIST_FILE" ]; then
+    echo "Error: Sample list file '<span class="math-inline">SAMPLE\_LIST\_FILE' not found\!"
+exit 1
+fi
+\# Read the specific line corresponding to the current array task
+\# sed \-n "</span>{SLURM_ARRAY_TASK_ID}p" reads the Nth line of the file
+SAMPLE_IDENTIFIER=<span class="math-inline">\(sed \-n "</span>{SLURM_ARRAY_TASK_ID}p" "$SAMPLE_LIST_FILE")
+
+# --- Basic logging ---
+echo "--- SLURM Array Task ID: $SLURM_ARRAY_TASK_ID ---"
+echo "Processing identifier: $SAMPLE_IDENTIFIER"
+echo "Start time: <span class="math-inline">\(date\)"
+\# \-\-\- Load modules \-\-\-
+module load bwa/0\.7\.17
+module load samtools/1\.16\.1
+\# \-\-\- Your processing command here \-\-\-
+\# Example\: Aligning a sample where SAMPLE\_IDENTIFIER is a FASTQ prefix
+\# Assumes input files are like 'data/sample\_id\_R1\.fastq\.gz' and 'data/sample\_id\_R2\.fastq\.gz'
+READ1\="data/</span>{SAMPLE_IDENTIFIER}_R1.fastq.gz"
+READ2="data/<span class="math-inline">\{SAMPLE\_IDENTIFIER\}\_R2\.fastq\.gz"
+REFERENCE\="/path/to/genome/reference\.fasta"
+OUTPUT\_BAM\="</span>{SAMPLE_IDENTIFIER}.sorted.bam"
+
+echo "Aligning $READ1 and $READ2..."
+bwa mem -t $SLURM_CPUS_PER_TASK $REFERENCE $READ1 <span class="math-inline">READ2 \| \\
+samtools view \-Sb \- \> "</span>{SAMPLE_IDENTIFIER}.bam"
+
+# Sort and index the BAM file
+samtools sort "${SAMPLE_IDENTIFIER}.bam" -o "$OUTPUT_BAM"
+samtools index "<span class="math-inline">OUTPUT\_BAM"
+\# Clean up unsorted BAM to save space
+rm "</span>{SAMPLE_IDENTIFIER}.bam"
+
+if [ $? -eq 0 ]; then
+    echo "Task $SLURM_ARRAY_TASK_ID ($SAMPLE_IDENTIFIER) completed successfully."
+else
+    echo "ERROR: Task $SLURM_ARRAY_TASK_ID ($SAMPLE_IDENTIFIER) failed."
+    exit 1
+fi
